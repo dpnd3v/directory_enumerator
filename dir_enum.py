@@ -30,7 +30,6 @@ try:
 except ImportError:
     HAS_AIOHTTP = False
 
-
 STATUS_LABELS = {
     200: "FOUND",     201: "FOUND",    204: "FOUND",
     301: "REDIRECT",  302: "REDIRECT", 307: "REDIRECT", 308: "REDIRECT",
@@ -52,7 +51,6 @@ CDN_IP_RANGES = [
 ]
 _CDN_NETS = [(ipaddress.ip_network(c), l) for c, l in CDN_IP_RANGES]
 LOCALHOST_PREFIXES = ["127.","10.","192.168.","::1","0.0.0.0"]
-
 
 def _hash(data: bytes) -> str:
     return hashlib.md5(data).hexdigest()
@@ -106,20 +104,6 @@ def resolve_target(hostname: str) -> dict:
         return {"ip": ip, "cdn": "localhost", "location": "localhost", "localhost": True}
     return {"ip": ip, "cdn": cdn_from_ip(ip), "location": geolocate(ip), "localhost": False}
 
-
-# ---------------------------------------------------------------------------
-# Smart Baseline
-#
-# Sends 3 probes to guaranteed-nonexistent paths and builds a fingerprint:
-#   - Collects: status codes, body hashes, body sizes, content-types
-#   - A response is a false positive if it matches ANY of these rules:
-#       1. Exact body hash matches any probe (static soft-404)
-#       2. Body size is within ±5% of ALL probe sizes AND content-type
-#          is text/html (dynamic SPA — same app shell, slightly different)
-#       3. Status code matches probe status AND content-type is text/html
-#          AND size > 2000 (large HTML page returned for everything)
-# ---------------------------------------------------------------------------
-
 class Baseline:
     def __init__(self, probes: list[tuple[int, bytes, str]]):
         self.probes = probes
@@ -164,7 +148,6 @@ class Baseline:
         return (f"type={kind}  statuses={sorted(self.statuses)}"
                 f"  sizes={sizes_str}  filter={'html+size' if self.is_spa else 'hash'}")
 
-
 def _fetch_sync(url: str, timeout: float, ua: str) -> tuple[int, bytes, str]:
     try:
         req = urllib.request.Request(url, method="GET")
@@ -179,7 +162,6 @@ def _fetch_sync(url: str, timeout: float, ua: str) -> tuple[int, bytes, str]:
     except Exception:
         return 0, b"", "-"
 
-
 def detect_baseline_sync(base_url: str, timeout: float, ua: str) -> Baseline | None:
     probe_paths = [
         f"{base_url}/__probe_a1b2c3__",
@@ -193,7 +175,6 @@ def detect_baseline_sync(base_url: str, timeout: float, ua: str) -> Baseline | N
         probes.append((s, b, ct))
     return Baseline(probes)
 
-
 async def _fetch_async(session, url, timeout):
     try:
         async with session.get(url, allow_redirects=False,
@@ -205,7 +186,6 @@ async def _fetch_async(session, url, timeout):
             return resp.status, body, ct, size, redir
     except Exception:
         return 0, b"", "-", "-", "-"
-
 
 async def _detect_baseline_async(session, base_url, timeout) -> Baseline | None:
     probe_paths = [
@@ -219,11 +199,6 @@ async def _detect_baseline_async(session, base_url, timeout) -> Baseline | None:
         if s == 0: return None
         probes.append((s, b, ct))
     return Baseline(probes)
-
-
-# ---------------------------------------------------------------------------
-# Rate limiter + adaptive throttle
-# ---------------------------------------------------------------------------
 
 class TokenBucket:
     def __init__(self, rate: float, capacity: float):
@@ -258,17 +233,11 @@ class AdaptiveThrottle:
         r = self.error_rate
         if r > self.threshold: await asyncio.sleep(r * 2.0)
 
-
 def build_targets(word: str, extensions: list[str]) -> list[str]:
     targets = [word]
     for ext in extensions:
         targets.append(f"{word}{ext}")
     return targets
-
-
-# ---------------------------------------------------------------------------
-# Sync probe
-# ---------------------------------------------------------------------------
 
 def probe_sync(base_url, word, timeout, extensions, baseline, ua) -> list[dict]:
     results = []
@@ -292,11 +261,6 @@ def probe_sync(base_url, word, timeout, extensions, baseline, ua) -> list[dict]:
                         "ctype": ct.split(";")[0].strip()})
     return results
 
-
-# ---------------------------------------------------------------------------
-# Async probe
-# ---------------------------------------------------------------------------
-
 async def probe_async(session, base_url, word, semaphore, bucket, throttle,
                       timeout, extensions, baseline) -> list[dict]:
     results = []
@@ -317,11 +281,6 @@ async def probe_async(session, base_url, word, semaphore, bucket, throttle,
                             "ctype": ct.split(";")[0].strip()})
     return results
 
-
-# ---------------------------------------------------------------------------
-# Output
-# ---------------------------------------------------------------------------
-
 def format_results(found: list[dict]) -> str:
     found.sort(key=lambda r: (r["status"], r["url"]))
     col_url    = max((len(r["url"])         for r in found), default=3); col_url    = max(col_url,    3)
@@ -338,11 +297,6 @@ def format_results(found: list[dict]) -> str:
                     f"{r['label']:<{col_label}}   {str(r['size']):<{col_size}}   "
                     f"{r['ctype']:<{col_ctype}}   {r['redir']:<{col_redir}}")
     return "\n".join(rows)
-
-
-# ---------------------------------------------------------------------------
-# Async engine
-# ---------------------------------------------------------------------------
 
 async def _run_async(base_url, words, concurrency, rps, timeout, extensions, idle_timeout, ua):
     connector = aiohttp.TCPConnector(limit=concurrency, ssl=False)
@@ -388,11 +342,6 @@ async def _run_async(base_url, words, concurrency, rps, timeout, extensions, idl
 
     print()
     return found, stop_reason
-
-
-# ---------------------------------------------------------------------------
-# Main dispatcher
-# ---------------------------------------------------------------------------
 
 def enumerate_dirs(base_url, wordlist, concurrency, rps, timeout, extensions,
                    output_file, idle_timeout, fallback_threads, ua):
@@ -478,11 +427,6 @@ def enumerate_dirs(base_url, wordlist, concurrency, rps, timeout, extensions,
         output_file.write_text(output + "\n", encoding="utf-8")
         print(f"\n[*] Saved : {output_file}")
 
-
-# ---------------------------------------------------------------------------
-# CLI
-# ---------------------------------------------------------------------------
-
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Directory Enumerator — OSINT Tool",
@@ -559,7 +503,6 @@ Examples:
         )
     except KeyboardInterrupt:
         print("\n\n[!] Interrupted."); sys.exit(0)
-
 
 if __name__ == "__main__":
     main()
